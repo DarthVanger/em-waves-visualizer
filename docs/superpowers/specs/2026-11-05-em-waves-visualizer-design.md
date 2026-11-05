@@ -74,6 +74,8 @@ Modules (`web/src/`), each one file with one job:
 1. `sensorLink.ts` — `SensorSource` interface (`connect()`, `send(cmd)`, `onMessage`, `onDisconnect`).
    Implementation uses Web Serial on desktop and WebUSB via `web-serial-polyfill` on Android.
    A `FakeSensorSource` (dev/test only, enabled with `?fake=1`) emits simulated messages.
+   Scenarios for E2E tests via `?fake=<scenario>`: `ok` (same as `1`), `badversion`, `nosignal`
+   (stops packets after 2 s), `disconnect` (drops after 2 s, returns after 2 s), `channelchange`, `malformed`.
 2. `protocol.ts` — parse JSON lines into typed messages; build command strings. Pure.
 3. `smoother.ts` — exponential moving average over RSSI (time constant ~300 ms); ignores `rssi:null`;
    flags "no signal" after 3 s without packets. Pure.
@@ -108,6 +110,15 @@ Modules (`web/src/`), each one file with one job:
 - **Unit (Vitest):** `protocol`, `smoother` (convergence, null handling, timeout), `waveModel` (channel 6 → 2437 MHz → 12.3 cm; free-space values; calibration; k clamping; hue), glow integral vs numerical integration on random rays.
 - **Integration (Vitest):** `sensorLink` + `networkPicker` flow against a fake serial port replaying recorded lines: handshake, scan, track, disconnect/reconnect, version mismatch.
 - **Firmware:** PlatformIO native tests for `lib/core` (JSON formatting, averaging windows, command parsing). Radio behavior verified manually via serial monitor (`SCAN` lists networks; `TRACK` streams ~20 Hz).
+- **E2E (Playwright):** run against the Vite dev server with `?fake=<scenario>`, in desktop Chromium and
+  mobile emulation (Pixel 7). Covers everything outside the live AR session:
+  - capability check — `navigator.xr` / `navigator.usb` / `navigator.serial` removed via `addInitScript` → explanatory message shown;
+  - picker flow — Connect → network list sorted by RSSI → pick → "Start AR" enabled;
+  - sensor test page — live RSSI graph updates;
+  - error states — `badversion` → install-page link; `nosignal` → "No signal" banner + Rescan; `disconnect` → banner then auto-recovery; `channelchange` → HUD channel/wavelength update; `malformed` → no crash;
+  - install page — ESP Web Tools button and manifest present.
+  The AR session itself (camera, hit-test, glow) cannot run in Playwright and stays manual. HUD elements are
+  checked in the DOM by role/text, not by screenshots.
 - **Manual on device:** walk toward/away (measured roughly follows expected); body-block (glow dims, difference shown); unplug/replug recovery; covered camera (tracking-lost hint).
 - **Dev without hardware:** `?fake=1` uses `FakeSensorSource`.
 
@@ -115,6 +126,6 @@ Modules (`web/src/`), each one file with one job:
 
 ```
 firmware/        PlatformIO project (src/, lib/core/, test/)
-web/             Vite + TypeScript app (src/, test/, public/firmware/ for ESP Web Tools manifest + binary)
+web/             Vite + TypeScript app (src/, test/ for Vitest, e2e/ for Playwright, public/firmware/ for ESP Web Tools manifest + binary)
 docs/superpowers/specs/
 ```
