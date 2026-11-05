@@ -61,7 +61,7 @@ Channel change handling: if no packets for 3 s, the firmware rescans for the sam
 channel it switches and emits `{"type":"channel","channel":11}`.
 
 Code layout: `firmware/src/main.cpp` (radio, serial I/O) and `firmware/lib/core/` (pure C++: JSON
-formatting, windowed averaging, command parsing) to keep radio code separate from logic.
+formatting, windowed averaging, command parsing) so core logic compiles and is tested natively.
 
 ### 3.2 Web app (TypeScript, Vite, three.js)
 
@@ -90,7 +90,7 @@ Modules (`web/src/`), each one file with one job:
    analytically over t ∈ [0, 10 m]: `E = (1/d)·(atan(t1/d) − atan(t0/d))`, where d is the ray's perpendicular
    distance to the source and t0, t1 are the segment ends relative to the closest point. Color =
    `hue(channel)`, intensity = `E · k · gain`, then soft tone mapping (`1 − exp(−x)`) so the near field
-   doesn't clip and the far field stays visible.
+   doesn't clip and the far field stays visible. A TypeScript twin of the shader formula is unit-tested.
 7. `hud.ts` — DOM overlay: network name and channel; hue legend with the eye analogy text;
    expected vs measured dBm and difference with explanation (e.g. "−12 dB: something is absorbing the
    signal"); distance to router; wavelength (e.g. 12.3 cm); Calibrate button; status banners.
@@ -105,17 +105,16 @@ Modules (`web/src/`), each one file with one job:
 
 ## 5. Testing
 
-No unit tests (decision 2026-11-05).
-
+- **Unit (Vitest):** `protocol`, `smoother` (convergence, null handling, timeout), `waveModel` (channel 6 → 2437 MHz → 12.3 cm; free-space values; calibration; k clamping; hue), glow integral vs numerical integration on random rays.
 - **Integration (Vitest):** `sensorLink` + `networkPicker` flow against a fake serial port replaying recorded lines: handshake, scan, track, disconnect/reconnect, version mismatch.
-- **Firmware:** verified manually via serial monitor (`HELLO` responds; `SCAN` lists networks; `TRACK` streams ~20 Hz; malformed commands return `error`).
+- **Firmware:** PlatformIO native tests for `lib/core` (JSON formatting, averaging windows, command parsing). Radio behavior verified manually via serial monitor (`SCAN` lists networks; `TRACK` streams ~20 Hz).
 - **Manual on device:** walk toward/away (measured roughly follows expected); body-block (glow dims, difference shown); unplug/replug recovery; covered camera (tracking-lost hint).
 - **Dev without hardware:** `?fake=1` uses `FakeSensorSource`.
 
 ## 6. Repository layout
 
 ```
-firmware/        PlatformIO project (src/, lib/core/)
+firmware/        PlatformIO project (src/, lib/core/, test/)
 web/             Vite + TypeScript app (src/, test/, public/firmware/ for ESP Web Tools manifest + binary)
 docs/superpowers/specs/
 ```
